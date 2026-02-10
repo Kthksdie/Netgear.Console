@@ -38,11 +38,11 @@ namespace Netgear.App {
             //    .BorderColor(Color.Grey)
             //    .RoundedBorder();
 
-            var currentDevices = new List<Device>();
+            var existingDevices = new List<Device>();
             var devicesResponse = Get<DevicesResponse>("devices").Result;
-            currentDevices = devicesResponse.Devices;
+            existingDevices = devicesResponse.Devices;
 
-            foreach (var device in currentDevices) {
+            foreach (var device in existingDevices) {
                 devicesTable.AddRow("", device.IP, device.Name, $"{device.SignalStrength}", "");
             }
 
@@ -53,45 +53,75 @@ namespace Netgear.App {
             AnsiConsole.Live(grid).Start(ctx => {
 
                 while (true) {
-                    for (var row = 0; row < currentDevices.Count; row++) {
-                        var device = currentDevices[row];
-                        device.PreviousLatency = device.Latency ?? 0;
+                    var allDevices = new List<Device>();
+                    foreach (var existingDevice in existingDevices) {
+                        existingDevice.PreviousSignalStrength = existingDevice.SignalStrength;
+                        allDevices.Add(existingDevice);
+                    }
 
-                        devicesTable.UpdateCell(row, 4, new Markup("---").Justify(Justify.Left));
-                        ctx.Refresh();
+                    devicesResponse = Get<DevicesResponse>("devices").Result;
+                    var currentDevices = devicesResponse.Devices;
+
+                    foreach (var currentDevice in currentDevices) {
+                        var sigStr = $"{currentDevice.SignalStrength}%";
+
+                        var existingDevice = allDevices.FirstOrDefault(x => x.MAC == currentDevice.MAC);
+                        if (existingDevice == null) {
+
+                            devicesTable.AddRow("", currentDevice.IP, currentDevice.Name, sigStr, "");
+
+                            allDevices.Add(currentDevice);
+                        }
+                        else {
+                            existingDevice.SignalStrength = currentDevice.SignalStrength;
+                        }
+                    }
+
+                    for (var row = 0; row < allDevices.Count; row++) {
+                        var device = allDevices[row];
+                        device.PreviousLatency = device.Latency ?? 0;
 
                         var pingResponse = Get<PingResponse>($"ping?ip={device.IP}").Result;
                         device.Latency = pingResponse.Latency;
 
                         var status = pingResponse.Online ? $"[yellow]●[/]" : "[grey]●[/]";
+                        var sigStrDiff = device.PreviousSignalStrength > 0 ? (device.SignalStrength - device.PreviousSignalStrength) : 0;
+                        var sigStr = $"{device.PreviousSignalStrength} {(sigStrDiff > 0 ? $"+{sigStrDiff}" : $"{sigStrDiff}").ToSuperscript()}";
+
                         var latencyValue = device.Latency ?? 0;
                         var previousLatencyValue = device.PreviousLatency;
-
                         var latencyDiff = previousLatencyValue > 0 ? (latencyValue - previousLatencyValue) : 0;
-
                         var latency = $"{latencyValue} {(latencyDiff > 0 ? $"+{latencyDiff}" : $"{latencyDiff}").ToSuperscript()}";
 
-                        devicesTable.UpdateCell(row, 0, new Markup(status).Justify(Justify.Center));
-                        devicesTable.UpdateCell(row, 4, new Markup(latency).Justify(Justify.Left));
+
+
+                        devicesTable.UpdateCell(row, 0, new Markup(status));
+                        devicesTable.UpdateCell(row, 3, new Markup(sigStr));
+                        devicesTable.UpdateCell(row, 4, new Markup(latency));
                         ctx.Refresh();
                     }
 
-                    devicesResponse = Get<DevicesResponse>("devices").Result;
-
+                    //devicesResponse = Get<DevicesResponse>("devices").Result;
                     foreach (var device in devicesResponse.Devices) {
-                        var currentDevice = currentDevices.FirstOrDefault(x => x.MAC == device.MAC);
+                        var currentDevice = existingDevices.FirstOrDefault(x => x.MAC == device.MAC);
                         if (currentDevice == null) {
-                            currentDevices.Add(device);
+                            existingDevices.Add(device);
                             devicesTable.AddRow("", device.IP, device.Name, $"{device.SignalStrength}", "");
                         }
                         else {
-                            var row = currentDevices.IndexOf(currentDevice);
+                            var row = existingDevices.IndexOf(currentDevice);
 
                             devicesTable.UpdateCell(row, 3, new Markup($"{device.SignalStrength}").Justify(Justify.Left));
                         }
                     }
 
                     ctx.Refresh();
+
+                    trafficResponse = Get<TrafficResponse>("traffic").Result;
+                    devicesTable.UpdateCell(0, 0, new Markup($"{trafficResponse.Stats.NewTodayDownload}"));
+                    devicesTable.UpdateCell(0, 1, new Markup($"{trafficResponse.Stats.NewTodayUpload}"));
+                    devicesTable.UpdateCell(1, 0, new Markup($"{trafficResponse.Stats.NewMonthDownload}"));
+                    devicesTable.UpdateCell(1, 1, new Markup($"{trafficResponse.Stats.NewMonthUpload}"));
 
                     Thread.Sleep(5 * 1000);
                 }

@@ -31,6 +31,9 @@ namespace Netgear.App.Components {
         [JsonPropertyName("SignalStrength")]
         public int SignalStrength { get; set; }
 
+        [JsonPropertyName("PreviousSignalStrength")]
+        public int PreviousSignalStrength { get; set; }
+
         [JsonPropertyName("AllowOrBlock")]
         public string AllowOrBlock { get; set; }
 
