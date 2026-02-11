@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Netgear.App {
+namespace Netgear.App.Extensions {
     public static class StringExtensions {
         private static Dictionary<char, char> _superscript = new Dictionary<char, char>() {
             { '-', '⁻' },
@@ -30,6 +30,9 @@ namespace Netgear.App {
             foreach (char c in value) {
                 if (_superscript.ContainsKey(c)) {
                     result += _superscript[c];
+                }
+                else {
+                    result += c;
                 }
             }
 
